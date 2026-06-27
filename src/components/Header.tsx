@@ -63,7 +63,7 @@ export default function Header({ isAdmin, onLoginSuccess, onLogout }: HeaderProp
             </div>
             <div>
               <h1 className="text-sm sm:text-base font-extrabold text-white tracking-tight flex items-center gap-2">
-                CS Department <span className="text-blue-400 font-light hidden sm:inline">| Timetable Portal</span>
+                EE Department <span className="text-blue-400 font-light hidden sm:inline">| Timetable Portal</span>
               </h1>
               <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Timetable & Facilities Coordinator</p>
             </div>
