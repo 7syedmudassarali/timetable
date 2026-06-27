@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "TimetableEntry": {
+      "title": "TimetableEntry",
+      "description": "A scheduled class or lab session in the department.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "day": { "type": "string" },
+        "type": { "type": "string", "enum": ["Class", "Lab"] },
+        "subject": { "type": "string" },
+        "teacher": { "type": "string" },
+        "room": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "batch": { "type": "string" }
+      },
+      "required": ["day", "type", "subject", "teacher", "room", "startTime", "endTime", "batch"]
+    }
+  },
+  "firestore": {
+    "timetable/{id}": {
+      "schema": "TimetableEntry",
+      "description": "The collection of scheduled classes and labs."
+    }
+  }
+}
