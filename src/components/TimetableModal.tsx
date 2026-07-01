@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Save, AlertCircle } from 'lucide-react';
-import { TimetableEntry, RoomEntry } from '../types';
+import { TimetableEntry, RoomEntry, TeacherEntry } from '../types';
 
 interface TimetableModalProps {
   isOpen: boolean;
@@ -10,6 +10,7 @@ interface TimetableModalProps {
   editingEntry?: TimetableEntry | null;
   timetable: TimetableEntry[];
   rooms: RoomEntry[];
+  teachers: TeacherEntry[];
 }
 
 const COMMON_ROOMS = [
@@ -38,14 +39,18 @@ export default function TimetableModal({
   onSave,
   editingEntry,
   timetable,
-  rooms
+  rooms,
+  teachers
 }: TimetableModalProps) {
   const roomList = rooms && rooms.length > 0 ? rooms.map(r => r.name) : COMMON_ROOMS;
+  const teacherList = teachers && teachers.length > 0 ? teachers.map(t => t.name) : [];
 
   const [day, setDay] = useState('Monday');
   const [type, setType] = useState<'Class' | 'Lab'>('Class');
   const [subject, setSubject] = useState('');
   const [teacher, setTeacher] = useState('');
+  const [customTeacher, setCustomTeacher] = useState('');
+  const [useCustomTeacher, setUseCustomTeacher] = useState(false);
   const [room, setRoom] = useState(roomList[0] || 'Lecture Room 101');
   const [customRoom, setCustomRoom] = useState('');
   const [useCustomRoom, setUseCustomRoom] = useState(false);
@@ -57,12 +62,24 @@ export default function TimetableModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    const listRooms = rooms && rooms.length > 0 ? rooms.map(r => r.name) : COMMON_ROOMS;
+    const listTeachers = teachers && teachers.length > 0 ? teachers.map(t => t.name) : [];
+
     if (editingEntry) {
       setDay(editingEntry.day);
       setType(editingEntry.type);
       setSubject(editingEntry.subject);
-      setTeacher(editingEntry.teacher);
-      if (roomList.includes(editingEntry.room)) {
+      
+      if (listTeachers.includes(editingEntry.teacher)) {
+        setTeacher(editingEntry.teacher);
+        setUseCustomTeacher(false);
+      } else {
+        setUseCustomTeacher(true);
+        setCustomTeacher(editingEntry.teacher);
+        setTeacher(editingEntry.teacher);
+      }
+
+      if (listRooms.includes(editingEntry.room)) {
         setRoom(editingEntry.room);
         setUseCustomRoom(false);
       } else {
@@ -77,8 +94,13 @@ export default function TimetableModal({
       setDay('Monday');
       setType('Class');
       setSubject('');
-      setTeacher('');
-      setRoom(roomList[0] || 'Lecture Room 101');
+      
+      const defaultTeacher = listTeachers[0] || '';
+      setTeacher(defaultTeacher);
+      setCustomTeacher('');
+      setUseCustomTeacher(listTeachers.length === 0);
+
+      setRoom(listRooms[0] || 'Lecture Room 101');
       setCustomRoom('');
       setUseCustomRoom(false);
       setStartTime('09:00');
@@ -86,7 +108,7 @@ export default function TimetableModal({
       setBatch('');
     }
     setError('');
-  }, [editingEntry, isOpen, rooms]);
+  }, [editingEntry, isOpen, rooms, teachers]);
 
   if (!isOpen) return null;
 
@@ -99,7 +121,9 @@ export default function TimetableModal({
       setError('Subject field is required.');
       return;
     }
-    if (!teacher.trim()) {
+    
+    const finalTeacher = useCustomTeacher ? customTeacher.trim() : teacher;
+    if (!finalTeacher) {
       setError('Teacher field is required.');
       return;
     }
@@ -141,7 +165,7 @@ export default function TimetableModal({
 
     if (conflictingEntry) {
       const roomConflict = conflictingEntry.room.toLowerCase().trim() === finalRoom.toLowerCase().trim();
-      const teacherConflict = conflictingEntry.teacher.toLowerCase().trim() === teacher.trim().toLowerCase();
+      const teacherConflict = conflictingEntry.teacher.toLowerCase().trim() === finalTeacher.toLowerCase().trim();
       const batchConflict = conflictingEntry.batch.toLowerCase().trim() === batch.trim().toLowerCase();
 
       if (roomConflict) {
@@ -149,7 +173,7 @@ export default function TimetableModal({
         return;
       }
       if (teacherConflict) {
-        setError(`Teacher Conflict: Dr./Prof. "${teacher.trim()}" is already scheduled for "${conflictingEntry.subject}" (${conflictingEntry.startTime} - ${conflictingEntry.endTime}) in "${conflictingEntry.room}" on ${day}.`);
+        setError(`Teacher Conflict: Dr./Prof. "${finalTeacher}" is already scheduled for "${conflictingEntry.subject}" (${conflictingEntry.startTime} - ${conflictingEntry.endTime}) in "${conflictingEntry.room}" on ${day}.`);
         return;
       }
       if (batchConflict) {
@@ -164,7 +188,7 @@ export default function TimetableModal({
         day,
         type,
         subject: subject.trim(),
-        teacher: teacher.trim(),
+        teacher: finalTeacher,
         room: finalRoom,
         startTime,
         endTime,
@@ -266,16 +290,51 @@ export default function TimetableModal({
 
             {/* Instructor Name */}
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Instructor Name
-              </label>
-              <input
-                type="text"
-                value={teacher}
-                onChange={(e) => setTeacher(e.target.value)}
-                placeholder="e.g. Dr. Mudassar"
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-medium"
-              />
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Instructor Name
+                </label>
+                {teacherList.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextVal = !useCustomTeacher;
+                      setUseCustomTeacher(nextVal);
+                      if (!nextVal) {
+                        setTeacher(teacherList[0] || '');
+                      } else {
+                        setCustomTeacher(teacher);
+                      }
+                    }}
+                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
+                  >
+                    {useCustomTeacher ? "Select Database Teacher" : "Enter Custom Teacher"}
+                  </button>
+                )}
+              </div>
+
+              {useCustomTeacher || teacherList.length === 0 ? (
+                <input
+                  type="text"
+                  value={customTeacher}
+                  onChange={(e) => {
+                    setCustomTeacher(e.target.value);
+                    setTeacher(e.target.value);
+                  }}
+                  placeholder="e.g. Dr. Mudassar"
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-medium"
+                />
+              ) : (
+                <select
+                  value={teacher}
+                  onChange={(e) => setTeacher(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-medium cursor-pointer"
+                >
+                  {teacherList.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {/* Lecture Room / Lab Selection */}

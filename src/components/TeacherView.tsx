@@ -1,36 +1,55 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, MapPin, Clock, Calendar, Search, AlertCircle, BookOpen } from 'lucide-react';
-import { TimetableEntry, getSemesterFromBatch } from '../types';
+import { User, MapPin, Clock, Calendar, Search, AlertCircle, BookOpen, Plus, Trash2 } from 'lucide-react';
+import { TimetableEntry, TeacherEntry, getSemesterFromBatch } from '../types';
 
 interface TeacherViewProps {
   timetable: TimetableEntry[];
+  isAdmin: boolean;
+  teachers: TeacherEntry[];
+  onAddTeacher: (name: string, department: string) => Promise<void>;
+  onDeleteTeacher: (id: string) => Promise<void>;
 }
 
 const DAYS_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-export default function TeacherView({ timetable }: TeacherViewProps) {
+export default function TeacherView({ 
+  timetable, 
+  isAdmin, 
+  teachers, 
+  onAddTeacher, 
+  onDeleteTeacher 
+}: TeacherViewProps) {
   const [selectedTeacher, setSelectedTeacher] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Extract unique teachers from the timetable
-  const teachers = Array.from(
-    new Set(timetable.map(entry => entry.teacher.trim()).filter(Boolean))
+  // Local state for instructor management form
+  const [isAddingTeacher, setIsAddingTeacher] = useState(false);
+  const [newTeacherName, setNewTeacherName] = useState('');
+  const [newTeacherDept, setNewTeacherDept] = useState('EE');
+  const [teacherCreatorError, setTeacherCreatorError] = useState('');
+  const [teacherToDelete, setTeacherToDelete] = useState<TeacherEntry | null>(null);
+
+  // Merge database teachers and teachers who have classes in the timetable
+  const dbTeacherNames = teachers.map(t => t.name.trim());
+  const timetableTeacherNames = timetable.map(entry => entry.teacher.trim()).filter(Boolean);
+  const allTeacherNames = Array.from(
+    new Set([...dbTeacherNames, ...timetableTeacherNames])
   ).sort();
 
   // Initialize selectedTeacher if not set but teachers exist
   useEffect(() => {
-    if (teachers.length > 0 && !selectedTeacher) {
-      setSelectedTeacher(teachers[0]);
+    if (allTeacherNames.length > 0 && !selectedTeacher) {
+      setSelectedTeacher(allTeacherNames[0]);
     }
-  }, [timetable, teachers, selectedTeacher]);
+  }, [timetable, teachers, selectedTeacher, allTeacherNames]);
 
   // Filter teachers for list based on search query
-  const filteredTeachers = teachers.filter(t => {
+  const filteredTeachers = allTeacherNames.filter(t => {
     const q = searchQuery.toLowerCase();
     if (t.toLowerCase().includes(q)) return true;
     
-    // Support searching teachers by subject, room, or semester they teach!
+    // Support searching teachers by subject, room, or semester they teach
     const schedules = timetable.filter(entry => entry.teacher.toLowerCase() === t.toLowerCase());
     return schedules.some(entry => 
       entry.subject.toLowerCase().includes(q) ||
@@ -73,7 +92,110 @@ export default function TeacherView({ timetable }: TeacherViewProps) {
             <p className="text-xs text-slate-500 font-semibold">Identify current rooms, schedule slots, and teaching assignments</p>
           </div>
         </div>
+
+        {isAdmin && (
+          <button
+            onClick={() => setIsAddingTeacher(!isAddingTeacher)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/10 transition-all cursor-pointer active:scale-95"
+          >
+            <Plus size={15} />
+            <span>Manage Instructors</span>
+          </button>
+        )}
       </div>
+
+      {/* Admin Teacher Manager Expandable Panel */}
+      <AnimatePresence>
+        {isAdmin && isAddingTeacher && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-xs sm:text-sm font-extrabold text-slate-900">
+                  Dynamic Instructor Management
+                </h3>
+                <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                  {teachers.length} Defined Instructors
+                </span>
+              </div>
+
+              {/* Add Teacher Inline Form */}
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setTeacherCreatorError('');
+                  if (!newTeacherName.trim()) {
+                    setTeacherCreatorError('Instructor name is required.');
+                    return;
+                  }
+                  // Check duplicate name
+                  if (teachers.some(t => t.name.toLowerCase() === newTeacherName.trim().toLowerCase())) {
+                    setTeacherCreatorError('An instructor with this name already exists.');
+                    return;
+                  }
+                  try {
+                    await onAddTeacher(newTeacherName.trim(), newTeacherDept);
+                    setNewTeacherName('');
+                    setTeacherCreatorError('');
+                  } catch (err: any) {
+                    setTeacherCreatorError(err.message || 'Failed to add instructor.');
+                  }
+                }}
+                className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end bg-slate-50/50 p-4 rounded-xl border border-slate-150"
+              >
+                <div>
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Instructor Name / Title
+                  </label>
+                  <input
+                    type="text"
+                    value={newTeacherName}
+                    onChange={(e) => setNewTeacherName(e.target.value)}
+                    placeholder="e.g. Dr. Abdul Rahman"
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Department / Area
+                  </label>
+                  <select
+                    value={newTeacherDept}
+                    onChange={(e) => setNewTeacherDept(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-semibold cursor-pointer"
+                  >
+                    <option value="EE">Electrical Engineering (EE)</option>
+                    <option value="CS">Computer Science (CS)</option>
+                    <option value="Math">Mathematics (Math)</option>
+                    <option value="Islamic Studies">Islamic Studies</option>
+                    <option value="Humanities">Humanities</option>
+                  </select>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
+                >
+                  Add Instructor
+                </button>
+              </form>
+
+              {teacherCreatorError && (
+                <p className="text-xs text-red-600 font-medium flex items-center gap-1.5">
+                  <AlertCircle size={14} />
+                  {teacherCreatorError}
+                </p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         
@@ -101,27 +223,50 @@ export default function TeacherView({ timetable }: TeacherViewProps) {
               filteredTeachers.map((teacher) => {
                 const isActive = selectedTeacher.toLowerCase() === teacher.toLowerCase();
                 const count = timetable.filter(entry => entry.teacher.toLowerCase() === teacher.toLowerCase()).length;
+                const matchedDbTeacher = teachers.find(t => t.name.toLowerCase().trim() === teacher.toLowerCase().trim());
                 
                 return (
-                  <button
+                  <div
                     key={teacher}
-                    onClick={() => setSelectedTeacher(teacher)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold rounded-lg transition-all duration-150 text-left border cursor-pointer ${
-                      isActive 
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-transparent'
-                    }`}
+                    className="flex items-center gap-1.5 w-full"
                   >
-                    <div className="flex items-center gap-2 truncate">
-                      <User size={13} className={isActive ? 'text-white' : 'text-slate-400'} />
-                      <span className="truncate">{teacher}</span>
-                    </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-extrabold ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500 border border-slate-200/40'
-                    }`}>
-                      {count}
-                    </span>
-                  </button>
+                    <button
+                      onClick={() => setSelectedTeacher(teacher)}
+                      className={`flex-1 flex items-center justify-between px-3 py-2.5 text-xs font-bold rounded-lg transition-all duration-150 text-left border cursor-pointer ${
+                        isActive 
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate pr-2">
+                        <User size={13} className={isActive ? 'text-white' : 'text-slate-400'} />
+                        <span className="truncate">{teacher}</span>
+                      </div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-md font-extrabold shrink-0 ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500 border border-slate-200/40'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+
+                    {isAdmin && matchedDbTeacher && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTeacherToDelete(matchedDbTeacher);
+                        }}
+                        className={`p-2 rounded-lg transition-all cursor-pointer shrink-0 ${
+                          isActive 
+                            ? 'text-blue-100 hover:text-white hover:bg-blue-700' 
+                            : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                        }`}
+                        title="Delete Instructor"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
                 );
               })
             ) : (
@@ -233,6 +378,61 @@ export default function TeacherView({ timetable }: TeacherViewProps) {
         </div>
 
       </div>
+
+      {/* Dynamic Teacher Deletion Confirmation Modal */}
+      <AnimatePresence>
+        {teacherToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl max-w-sm w-full overflow-hidden border border-slate-100"
+            >
+              <div className="h-1 bg-red-600" />
+              <div className="p-5 space-y-4">
+                <div className="flex gap-3">
+                  <div className="h-9 w-9 bg-red-50 text-red-600 rounded-lg flex items-center justify-center shrink-0 border border-red-100">
+                    <Trash2 size={16} />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-xs sm:text-sm font-extrabold text-slate-900">Remove Instructor?</h3>
+                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                      Are you sure you want to remove <span className="font-extrabold text-slate-800">"{teacherToDelete.name}"</span>? This will permanently remove them from the list of selectable instructors.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTeacherToDelete(null)}
+                    className="flex-1 py-2 text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await onDeleteTeacher(teacherToDelete.id);
+                        setTeacherToDelete(null);
+                        // If selectedTeacher was deleted, set selectedTeacher to the first available one
+                        const nextTeachersList = teachers.filter(t => t.id !== teacherToDelete.id);
+                        if (selectedTeacher.toLowerCase() === teacherToDelete.name.toLowerCase()) {
+                          setSelectedTeacher(nextTeachersList[0]?.name || '');
+                        }
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    }}
+                    className="flex-1 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Remove Permanently
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

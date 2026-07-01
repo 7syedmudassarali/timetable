@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Calendar, MapPin, User, Clock, GraduationCap, Edit, Trash2, PlusCircle, AlertCircle } from 'lucide-react';
+import { Search, Calendar, MapPin, User, Clock, GraduationCap, Edit, Trash2, PlusCircle, AlertCircle, Download, FileText } from 'lucide-react';
 import { TimetableEntry, getSemesterFromBatch } from '../types';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface StudentViewProps {
   timetable: TimetableEntry[];
@@ -42,6 +44,123 @@ export default function StudentView({
   useEffect(() => {
     localStorage.setItem('student_selected_semester', selectedSemester);
   }, [selectedSemester]);
+
+  const downloadPDF = (isFull: boolean) => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Header title
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(15, 23, 42); // Slate 900
+      doc.text("EE Department — Timetable Portal", 14, 18);
+
+      // Sub-header details
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139); // Slate 500
+      
+      let titleStr = "Complete Departmental Timetable (All Sections & Semesters)";
+      let dataToExport = timetable;
+
+      if (!isFull) {
+        titleStr = `Filtered Timetable — Semester: ${selectedSemester} | Section: ${selectedBatch}`;
+        dataToExport = timetable.filter(entry => {
+          if (selectedSemester !== 'All' && getSemesterFromBatch(entry.batch) !== selectedSemester) {
+            return false;
+          }
+          if (selectedBatch !== 'All' && entry.batch !== selectedBatch) {
+            return false;
+          }
+          return true;
+        });
+      }
+
+      doc.text(titleStr, 14, 24);
+      doc.text(`Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, 14, 29);
+
+      // Add a line divider
+      doc.setDrawColor(226, 232, 240); // Slate 200
+      doc.line(14, 32, 283, 32);
+
+      // Prepare table headers & rows
+      const sortedData = [...dataToExport].sort((a, b) => {
+        const dayDiff = DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
+        if (dayDiff !== 0) return dayDiff;
+        return a.startTime.localeCompare(b.startTime);
+      });
+
+      const headers = [["Day", "Time Slot", "Subject / Course", "Instructor", "Location", "Section", "Type"]];
+      const rows = sortedData.map(entry => [
+        entry.day,
+        `${entry.startTime} - ${entry.endTime}`,
+        entry.subject,
+        entry.teacher,
+        entry.room,
+        entry.batch,
+        entry.type.toUpperCase()
+      ]);
+
+      if (rows.length === 0) {
+        doc.setFont("Helvetica", "italic");
+        doc.setFontSize(11);
+        doc.setTextColor(148, 163, 184); // Slate 400
+        doc.text("No classes scheduled for the selected filters.", 14, 45);
+      } else {
+        autoTable(doc, {
+          startY: 36,
+          head: headers,
+          body: rows,
+          theme: 'striped',
+          headStyles: {
+            fillColor: [30, 41, 59], // Slate 800
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 9,
+            halign: 'left'
+          },
+          bodyStyles: {
+            fontSize: 8.5,
+            textColor: [51, 65, 85] // Slate 700
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252] // Slate 50
+          },
+          columnStyles: {
+            0: { fontStyle: 'bold', cellWidth: 25 },
+            1: { fontStyle: 'bold', cellWidth: 32 },
+            2: { fontStyle: 'bold', cellWidth: 65 },
+            3: { cellWidth: 45 },
+            4: { cellWidth: 35 },
+            5: { fontStyle: 'bold', cellWidth: 22 },
+            6: { fontStyle: 'bold', cellWidth: 22 }
+          },
+          margin: { left: 14, right: 14 },
+          didDrawPage: (data) => {
+            // Footer with page number
+            const str = "Page " + (doc as any).internal.getNumberOfPages();
+            doc.setFontSize(8);
+            doc.setFont("Helvetica", "normal");
+            doc.setTextColor(148, 163, 184);
+            doc.text(str, 283 - doc.getTextWidth(str), 200);
+            doc.text("EE Department Portal — Dynamic Scheduler", 14, 200);
+          }
+        });
+      }
+
+      const filename = isFull 
+        ? "ee_department_full_timetable.pdf" 
+        : `ee_timetable_${selectedSemester.toLowerCase().replace(/\s+/g, '_')}_sec_${selectedBatch.toLowerCase().replace(/\s+/g, '_')}.pdf`;
+
+      doc.save(filename);
+    } catch (error) {
+      console.error("PDF generation failed:", error);
+    }
+  };
 
   // Extract unique semesters
   const uniqueSemesters = Array.from(new Set(timetable.map(entry => getSemesterFromBatch(entry.batch))))
@@ -170,6 +289,29 @@ export default function StudentView({
                   <option key={batch} value={batch}>Only Section {batch}</option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* PDF Export Controls */}
+          <div className="flex-1 flex flex-col md:items-end justify-end pt-2 sm:pt-0">
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 md:self-end">Export Schedule</label>
+            <div className="flex flex-wrap gap-2 md:justify-end">
+              <button
+                onClick={() => downloadPDF(false)}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs cursor-pointer active:scale-95 hover:shadow-md transition-all duration-150"
+                title="Download current filtered timetable as PDF"
+              >
+                <Download size={13} />
+                <span>Download PDF ({selectedSemester === 'All' ? 'All Sem' : selectedSemester} - {selectedBatch === 'All' ? 'All Sec' : `Sec ${selectedBatch}`})</span>
+              </button>
+              <button
+                onClick={() => downloadPDF(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold shadow-xs cursor-pointer active:scale-95 hover:shadow-md transition-all duration-150"
+                title="Download full department timetable as PDF"
+              >
+                <FileText size={13} />
+                <span>Download Full Timetable</span>
+              </button>
             </div>
           </div>
         </div>

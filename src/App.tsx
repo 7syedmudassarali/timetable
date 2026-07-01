@@ -7,9 +7,12 @@ import {
   deleteTimetableEntry,
   getRooms,
   addRoom,
-  deleteRoom
+  deleteRoom,
+  getTeachers,
+  addTeacher,
+  deleteTeacher
 } from './firebase';
-import { TimetableEntry, RoomEntry } from './types';
+import { TimetableEntry, RoomEntry, TeacherEntry } from './types';
 import Header from './components/Header';
 import StudentView from './components/StudentView';
 import TeacherView from './components/TeacherView';
@@ -20,6 +23,7 @@ import { BookOpen, GraduationCap, Map, Users, Settings, AlertCircle, RefreshCw, 
 export default function App() {
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
   const [rooms, setRooms] = useState<RoomEntry[]>([]);
+  const [teachers, setTeachers] = useState<TeacherEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState<'student' | 'teacher' | 'rooms'>('student');
@@ -42,12 +46,14 @@ export default function App() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [timetableData, roomsData] = await Promise.all([
+      const [timetableData, roomsData, teachersData] = await Promise.all([
         getTimetable(),
-        getRooms()
+        getRooms(),
+        getTeachers()
       ]);
       setTimetable(timetableData);
       setRooms(roomsData);
+      setTeachers(teachersData);
     } catch (error) {
       console.error("Failed to load initial data:", error);
       showToast("Failed to fetch data from Firebase. Using local cache.", "error");
@@ -63,6 +69,8 @@ export default function App() {
       setTimetable(data);
       const roomsData = await getRooms();
       setRooms(roomsData);
+      const teachersData = await getTeachers();
+      setTeachers(teachersData);
     } catch (error) {
       console.error("Failed to load timetable data:", error);
       showToast("Failed to fetch timetable data. Using local cache.", "error");
@@ -130,6 +138,30 @@ export default function App() {
     } catch (error) {
       console.error(error);
       showToast("Error deleting room.", "error");
+      throw error;
+    }
+  };
+
+  const handleAddTeacher = async (name: string, department: string) => {
+    try {
+      const id = await addTeacher({ name, department });
+      setTeachers(prev => [...prev, { id, name, department }].sort((a, b) => a.name.localeCompare(b.name)));
+      showToast(`Instructor "${name}" added successfully!`);
+    } catch (error) {
+      console.error(error);
+      showToast("Error adding instructor.", "error");
+      throw error;
+    }
+  };
+
+  const handleDeleteTeacher = async (teacherId: string) => {
+    try {
+      await deleteTeacher(teacherId);
+      setTeachers(prev => prev.filter(t => t.id !== teacherId));
+      showToast("Instructor deleted successfully!");
+    } catch (error) {
+      console.error(error);
+      showToast("Error deleting instructor.", "error");
       throw error;
     }
   };
@@ -266,7 +298,13 @@ export default function App() {
               )}
 
               {activeTab === 'teacher' && (
-                <TeacherView timetable={timetable} />
+                <TeacherView 
+                  timetable={timetable} 
+                  isAdmin={isAdmin}
+                  teachers={teachers}
+                  onAddTeacher={handleAddTeacher}
+                  onDeleteTeacher={handleDeleteTeacher}
+                />
               )}
 
               {activeTab === 'rooms' && (
@@ -304,6 +342,7 @@ export default function App() {
         editingEntry={editingEntry}
         timetable={timetable}
         rooms={rooms}
+        teachers={teachers}
       />
 
       {/* Custom Delete Confirmation Dialog */}

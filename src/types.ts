@@ -4,6 +4,12 @@ export interface RoomEntry {
   type: 'Class' | 'Lab';
 }
 
+export interface TeacherEntry {
+  id: string;
+  name: string;
+  department: string; // e.g. "EE", "CS", "Math" etc
+}
+
 export interface TimetableEntry {
   id: string;
   day: string; // Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday

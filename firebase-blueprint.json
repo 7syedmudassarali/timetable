@@ -16,12 +16,42 @@
         "batch": { "type": "string" }
       },
       "required": ["day", "type", "subject", "teacher", "room", "startTime", "endTime", "batch"]
+    },
+    "RoomEntry": {
+      "title": "RoomEntry",
+      "description": "A facility such as a classroom or lab.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["Class", "Lab"] }
+      },
+      "required": ["name", "type"]
+    },
+    "TeacherEntry": {
+      "title": "TeacherEntry",
+      "description": "An instructor in the department.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "department": { "type": "string" }
+      },
+      "required": ["name", "department"]
     }
   },
   "firestore": {
     "timetable/{id}": {
       "schema": "TimetableEntry",
       "description": "The collection of scheduled classes and labs."
+    },
+    "rooms/{id}": {
+      "schema": "RoomEntry",
+      "description": "The collection of university lecture halls and labs."
+    },
+    "teachers/{id}": {
+      "schema": "TeacherEntry",
+      "description": "The collection of instructors in the department."
     }
   }
 }

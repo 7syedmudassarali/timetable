@@ -9,7 +9,7 @@ import {
   doc,
   writeBatch
 } from 'firebase/firestore';
-import { TimetableEntry, RoomEntry } from './types';
+import { TimetableEntry, RoomEntry, TeacherEntry } from './types';
 import firebaseConfigJson from '../firebase-applet-config.json';
 
 const metaEnv = (import.meta as any).env || {};
@@ -231,5 +231,65 @@ export async function addRoom(room: Omit<RoomEntry, 'id'>): Promise<string> {
 
 export async function deleteRoom(id: string): Promise<void> {
   const docRef = doc(db, ROOMS_COLLECTION, id);
+  await deleteDoc(docRef);
+}
+
+const TEACHERS_COLLECTION = "teachers";
+
+const defaultTeachers: Omit<TeacherEntry, 'id'>[] = [
+  { name: "Dr. Mudassar", department: "EE" },
+  { name: "Engr. Ali", department: "EE" },
+  { name: "Prof. Fatima", department: "EE" },
+  { name: "Dr. Arshad", department: "EE" },
+  { name: "Prof. Usman", department: "EE" }
+];
+
+export async function getTeachers(): Promise<TeacherEntry[]> {
+  try {
+    const colRef = collection(db, TEACHERS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    
+    if (snapshot.empty) {
+      console.log("Teachers collection is empty. Seeding default teachers...");
+      const seeded: TeacherEntry[] = [];
+      const batch = writeBatch(db);
+      
+      for (const item of defaultTeachers) {
+        const newDocRef = doc(colRef);
+        const entryWithId = { ...item, id: newDocRef.id };
+        batch.set(newDocRef, entryWithId);
+        seeded.push(entryWithId);
+      }
+      
+      await batch.commit();
+      return seeded;
+    }
+    
+    const teachers: TeacherEntry[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      teachers.push({
+        id: docSnap.id,
+        name: data.name || "",
+        department: data.department || "EE"
+      });
+    });
+    
+    return teachers.sort((a, b) => a.name.localeCompare(b.name));
+  } catch (error) {
+    console.error("Error fetching teachers from Firebase, using default mock:", error);
+    return defaultTeachers.map((d, i) => ({ ...d, id: `mock-teacher-${i}` }));
+  }
+}
+
+export async function addTeacher(teacher: Omit<TeacherEntry, 'id'>): Promise<string> {
+  const colRef = collection(db, TEACHERS_COLLECTION);
+  const docRef = await addDoc(colRef, teacher);
+  await updateDoc(docRef, { id: docRef.id });
+  return docRef.id;
+}
+
+export async function deleteTeacher(id: string): Promise<void> {
+  const docRef = doc(db, TEACHERS_COLLECTION, id);
   await deleteDoc(docRef);
 }
