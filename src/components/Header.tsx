@@ -38,7 +38,8 @@ export default function Header({ isAdmin, onLoginSuccess, onLogout }: HeaderProp
 
     setTimeout(() => {
       // Validate with user specified credentials
-      if (email.toLowerCase() === 'syed.mudassaralishah13@gmail.com' && password === '123456') {
+      const normalizedEmail = email.toLowerCase().trim();
+      if (normalizedEmail === '7syedmudassarali@gmail.com' && password === '123456') {
         onLoginSuccess();
         setIsLoginOpen(false);
         setEmail('');
@@ -165,8 +166,8 @@ export default function Header({ isAdmin, onLoginSuccess, onLogout }: HeaderProp
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="syed.mudassaralishah13@gmail.com"
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:border-[#1e3a8a] focus:ring-1 focus:ring-[#1e3a8a] placeholder:text-slate-400 font-medium"
+                    placeholder=""
+                    className="w-full px-3 py-2 text-xs bg-transparent border border-slate-200 rounded-lg focus:outline-hidden focus:border-[#1e3a8a] focus:ring-1 focus:ring-[#1e3a8a] placeholder:text-slate-400 font-medium"
                   />
                 </div>
 

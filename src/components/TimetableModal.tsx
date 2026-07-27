@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Save, AlertCircle } from 'lucide-react';
+import { X, Save, AlertCircle, Users, Plus, Trash2 } from 'lucide-react';
 import { TimetableEntry, RoomEntry, TeacherEntry } from '../types';
 
 interface TimetableModalProps {
@@ -57,6 +57,8 @@ export default function TimetableModal({
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:30');
   const [batch, setBatch] = useState('');
+  const [isCombinedClass, setIsCombinedClass] = useState(false);
+  const [combinedSections, setCombinedSections] = useState<string[]>(['', '']);
   
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,6 +91,15 @@ export default function TimetableModal({
       setStartTime(editingEntry.startTime);
       setEndTime(editingEntry.endTime);
       setBatch(editingEntry.batch);
+
+      const isComb = editingEntry.batch.includes('+') || editingEntry.batch.toLowerCase().includes('combined');
+      setIsCombinedClass(isComb);
+      if (isComb) {
+        const parts = editingEntry.batch.replace(/\(Combined\)/gi, '').split(/[\+,\&]/).map(s => s.trim()).filter(Boolean);
+        setCombinedSections(parts.length >= 2 ? parts : [editingEntry.batch, '']);
+      } else {
+        setCombinedSections(['', '']);
+      }
     } else {
       // Defaults
       setDay('Monday');
@@ -106,6 +117,8 @@ export default function TimetableModal({
       setStartTime('09:00');
       setEndTime('10:30');
       setBatch('');
+      setIsCombinedClass(false);
+      setCombinedSections(['', '']);
     }
     setError('');
   }, [editingEntry, isOpen, rooms, teachers]);
@@ -134,9 +147,19 @@ export default function TimetableModal({
       return;
     }
     
-    if (!batch.trim()) {
-      setError('Batch/Section is required.');
-      return;
+    let finalBatch = batch.trim();
+    if (isCombinedClass) {
+      const validSections = combinedSections.map(s => s.trim()).filter(Boolean);
+      if (validSections.length < 2) {
+        setError('Please specify at least two sections for a combined class.');
+        return;
+      }
+      finalBatch = `${validSections.join(' + ')} (Combined)`;
+    } else {
+      if (!finalBatch) {
+        setError('Batch/Section is required.');
+        return;
+      }
     }
 
     if (!startTime || !endTime) {
@@ -149,6 +172,13 @@ export default function TimetableModal({
       setError('End time must be after start time.');
       return;
     }
+
+    // Helper to check if batches overlap
+    const doBatchesOverlap = (b1: string, b2: string) => {
+      const norm1 = b1.toLowerCase().replace(/\(combined\)/g, '').split(/[\+,\&]/).map(s => s.trim()).filter(Boolean);
+      const norm2 = b2.toLowerCase().replace(/\(combined\)/g, '').split(/[\+,\&]/).map(s => s.trim()).filter(Boolean);
+      return norm1.some(s1 => norm2.some(s2 => s1 === s2 || s1.includes(s2) || s2.includes(s1)));
+    };
 
     // Check for scheduling conflicts (Room, Teacher, and Batch/Class)
     const conflictingEntry = timetable.find(entry => {
@@ -166,7 +196,7 @@ export default function TimetableModal({
     if (conflictingEntry) {
       const roomConflict = conflictingEntry.room.toLowerCase().trim() === finalRoom.toLowerCase().trim();
       const teacherConflict = conflictingEntry.teacher.toLowerCase().trim() === finalTeacher.toLowerCase().trim();
-      const batchConflict = conflictingEntry.batch.toLowerCase().trim() === batch.trim().toLowerCase();
+      const batchConflict = doBatchesOverlap(conflictingEntry.batch, finalBatch);
 
       if (roomConflict) {
         setError(`Room Conflict: Room/Lab "${finalRoom}" is already booked for "${conflictingEntry.subject}" (${conflictingEntry.startTime} - ${conflictingEntry.endTime}) on ${day}.`);
@@ -177,7 +207,7 @@ export default function TimetableModal({
         return;
       }
       if (batchConflict) {
-        setError(`Section Conflict: Batch/Section "${batch.trim()}" is already scheduled for "${conflictingEntry.subject}" (${conflictingEntry.startTime} - ${conflictingEntry.endTime}) in "${conflictingEntry.room}" on ${day}.`);
+        setError(`Section Conflict: Section "${finalBatch}" conflicts with scheduled class for "${conflictingEntry.batch}" (${conflictingEntry.subject} ${conflictingEntry.startTime} - ${conflictingEntry.endTime}) on ${day}.`);
         return;
       }
     }
@@ -192,7 +222,7 @@ export default function TimetableModal({
         room: finalRoom,
         startTime,
         endTime,
-        batch: batch.trim()
+        batch: finalBatch
       };
       
       if (editingEntry) {
@@ -402,17 +432,93 @@ export default function TimetableModal({
             </div>
 
             {/* Target Batch / Class Section */}
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Target Batch / Section
-              </label>
-              <input
-                type="text"
-                value={batch}
-                onChange={(e) => setBatch(e.target.value)}
-                placeholder="e.g. CS-3A or Section-B"
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-medium"
-              />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Target Batch / Section
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextState = !isCombinedClass;
+                    setIsCombinedClass(nextState);
+                    if (nextState && combinedSections.every(s => !s.trim()) && batch.trim()) {
+                      setCombinedSections([batch.trim(), '']);
+                    }
+                  }}
+                  className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isCombinedClass 
+                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-xs' 
+                      : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border-slate-200'
+                  }`}
+                >
+                  <Users size={12} />
+                  <span>{isCombinedClass ? "Combined Class Mode" : "+ Combine Multiple Sections"}</span>
+                </button>
+              </div>
+
+              {isCombinedClass ? (
+                <div className="p-3 bg-indigo-50/50 border border-indigo-200/80 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-indigo-900">
+                    <span>Combined Sections (2 or more)</span>
+                    <span className="text-[10px] text-indigo-600 font-medium">e.g. EE-1A + EE-1B</span>
+                  </div>
+
+                  {combinedSections.map((sec, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-slate-500 w-12 shrink-0">Sec {idx + 1}:</span>
+                      <input
+                        type="text"
+                        value={sec}
+                        onChange={(e) => {
+                          const updated = [...combinedSections];
+                          updated[idx] = e.target.value;
+                          setCombinedSections(updated);
+                        }}
+                        placeholder={`Section ${idx + 1} (e.g. EE-1${String.fromCharCode(65 + idx)})`}
+                        className="flex-1 px-3 py-1.5 text-xs bg-white border border-indigo-200 rounded-lg focus:outline-hidden focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 font-semibold"
+                      />
+                      {combinedSections.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCombinedSections(combinedSections.filter((_, i) => i !== idx));
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer shrink-0"
+                          title="Remove Section"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setCombinedSections([...combinedSections, ''])}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-900 cursor-pointer"
+                    >
+                      <Plus size={12} />
+                      <span>Add Section</span>
+                    </button>
+
+                    {combinedSections.filter(Boolean).length >= 2 && (
+                      <span className="text-[10px] font-mono font-bold text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded-md border border-indigo-200/50">
+                        Preview: {combinedSections.filter(Boolean).join(' + ')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={batch}
+                  onChange={(e) => setBatch(e.target.value)}
+                  placeholder="e.g. CS-3A or Section-B"
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-medium"
+                />
+              )}
             </div>
 
             {/* Submit Actions */}

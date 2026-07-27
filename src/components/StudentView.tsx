@@ -45,6 +45,16 @@ export default function StudentView({
     localStorage.setItem('student_selected_semester', selectedSemester);
   }, [selectedSemester]);
 
+  // Helper to check if a class batch matches a target section
+  const isBatchMatch = (entryBatch: string, targetSection: string) => {
+    if (targetSection === 'All') return true;
+    if (entryBatch === targetSection) return true;
+    const normEntry = entryBatch.toLowerCase().replace(/\(combined\)/g, '').trim();
+    const normTarget = targetSection.toLowerCase().replace(/\(combined\)/g, '').trim();
+    const parts = normEntry.split(/[\+,\&]/).map(s => s.trim()).filter(Boolean);
+    return parts.includes(normTarget) || normEntry.includes(normTarget);
+  };
+
   const downloadPDF = (isFull: boolean) => {
     try {
       const doc = new jsPDF({
@@ -69,11 +79,14 @@ export default function StudentView({
 
       if (!isFull) {
         titleStr = `Filtered Timetable — Semester: ${selectedSemester} | Section: ${selectedBatch}`;
+        if (selectedBatch !== 'All') {
+          titleStr += ` (Includes Individual & Combined Classes)`;
+        }
         dataToExport = timetable.filter(entry => {
           if (selectedSemester !== 'All' && getSemesterFromBatch(entry.batch) !== selectedSemester) {
             return false;
           }
-          if (selectedBatch !== 'All' && entry.batch !== selectedBatch) {
+          if (!isBatchMatch(entry.batch, selectedBatch)) {
             return false;
           }
           return true;
@@ -95,15 +108,23 @@ export default function StudentView({
       });
 
       const headers = [["Day", "Time Slot", "Subject / Course", "Instructor", "Location", "Section", "Type"]];
-      const rows = sortedData.map(entry => [
-        entry.day,
-        `${entry.startTime} - ${entry.endTime}`,
-        entry.subject,
-        entry.teacher,
-        entry.room,
-        entry.batch,
-        entry.type.toUpperCase()
-      ]);
+      const rows = sortedData.map(entry => {
+        const isCombined = entry.batch.includes('+') || entry.batch.toLowerCase().includes('combined');
+        let sectionText = entry.batch;
+        if (isCombined && !sectionText.toLowerCase().includes('combined')) {
+          sectionText = `${sectionText} (Combined)`;
+        }
+
+        return [
+          entry.day,
+          `${entry.startTime} - ${entry.endTime}`,
+          entry.subject,
+          entry.teacher,
+          entry.room,
+          sectionText,
+          entry.type.toUpperCase()
+        ];
+      });
 
       if (rows.length === 0) {
         doc.setFont("Helvetica", "italic");
@@ -133,10 +154,10 @@ export default function StudentView({
           columnStyles: {
             0: { fontStyle: 'bold', cellWidth: 25 },
             1: { fontStyle: 'bold', cellWidth: 32 },
-            2: { fontStyle: 'bold', cellWidth: 65 },
-            3: { cellWidth: 45 },
-            4: { cellWidth: 35 },
-            5: { fontStyle: 'bold', cellWidth: 22 },
+            2: { fontStyle: 'bold', cellWidth: 60 },
+            3: { cellWidth: 40 },
+            4: { cellWidth: 30 },
+            5: { fontStyle: 'bold', cellWidth: 50 },
             6: { fontStyle: 'bold', cellWidth: 22 }
           },
           margin: { left: 14, right: 14 },
@@ -171,12 +192,16 @@ export default function StudentView({
       return numA - numB;
     });
 
-  // Extract unique batches for the student selection dropdown, potentially filtered by selected semester
+  // Extract unique individual section names (e.g. "EE-1A", "EE-1B") without separate combined entry options
   const uniqueBatches = Array.from(
     new Set(
       timetable
         .filter(entry => selectedSemester === 'All' || getSemesterFromBatch(entry.batch) === selectedSemester)
-        .map(entry => entry.batch)
+        .flatMap(entry => {
+          const cleaned = entry.batch.replace(/\(Combined\)/gi, '').trim();
+          const parts = cleaned.split(/[\+,\&]/).map(s => s.trim()).filter(Boolean);
+          return parts.length > 0 ? parts : [entry.batch.trim()];
+        })
     )
   )
     .filter(Boolean)
@@ -196,7 +221,7 @@ export default function StudentView({
       if (selectedSemester !== 'All' && getSemesterFromBatch(entry.batch) !== selectedSemester) {
         return false;
       }
-      if (selectedBatch !== 'All' && entry.batch !== selectedBatch) {
+      if (!isBatchMatch(entry.batch, selectedBatch)) {
         return false;
       }
       return true;
@@ -408,9 +433,16 @@ export default function StudentView({
                       </td>
                       {/* Batch */}
                       <td className="px-6 py-4.5 whitespace-nowrap">
-                        <span className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200/50">
-                          {entry.batch}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200/50">
+                            {entry.batch}
+                          </span>
+                          {(entry.batch.includes('+') || entry.batch.toLowerCase().includes('combined')) && (
+                            <span className="inline-flex items-center text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-md">
+                              Combined
+                            </span>
+                          )}
+                        </div>
                       </td>
                       {/* Type Badge */}
                       <td className="px-6 py-4.5 whitespace-nowrap">
@@ -476,9 +508,16 @@ export default function StudentView({
                         }`}>
                           {entry.type === 'Lab' ? 'LAB' : 'LECTURE'}
                         </span>
-                        <span className="text-xs font-semibold text-slate-400 bg-slate-50 px-2 py-0.5 border border-slate-100 rounded-md font-mono">
-                          {entry.batch}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-semibold text-slate-600 bg-slate-50 px-2 py-0.5 border border-slate-200/60 rounded-md font-mono">
+                            {entry.batch}
+                          </span>
+                          {(entry.batch.includes('+') || entry.batch.toLowerCase().includes('combined')) && (
+                            <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.5 rounded-md">
+                              Combined
+                            </span>
+                          )}
+                        </div>
                       </div>
                       
                       <h3 className="text-base font-bold text-slate-850 line-clamp-2">
