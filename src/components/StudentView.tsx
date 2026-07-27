@@ -58,20 +58,20 @@ export default function StudentView({
   const downloadPDF = (isFull: boolean) => {
     try {
       const doc = new jsPDF({
-        orientation: 'landscape',
+        orientation: 'portrait',
         unit: 'mm',
         format: 'a4'
       });
 
       // Header title
       doc.setFont("Helvetica", "bold");
-      doc.setFontSize(18);
+      doc.setFontSize(16);
       doc.setTextColor(15, 23, 42); // Slate 900
       doc.text("EE Department — Timetable Portal", 14, 18);
 
       // Sub-header details
       doc.setFont("Helvetica", "normal");
-      doc.setFontSize(10);
+      doc.setFontSize(9.5);
       doc.setTextColor(100, 116, 139); // Slate 500
       
       let titleStr = "Complete Departmental Timetable (All Sections & Semesters)";
@@ -96,9 +96,9 @@ export default function StudentView({
       doc.text(titleStr, 14, 24);
       doc.text(`Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, 14, 29);
 
-      // Add a line divider
+      // Add a line divider (Portrait width: 210mm, right margin 14mm -> 196mm)
       doc.setDrawColor(226, 232, 240); // Slate 200
-      doc.line(14, 32, 283, 32);
+      doc.line(14, 32, 196, 32);
 
       // Prepare table headers & rows
       const sortedData = [...dataToExport].sort((a, b) => {
@@ -141,34 +141,34 @@ export default function StudentView({
             fillColor: [30, 41, 59], // Slate 800
             textColor: [255, 255, 255],
             fontStyle: 'bold',
-            fontSize: 9,
+            fontSize: 8.5,
             halign: 'left'
           },
           bodyStyles: {
-            fontSize: 8.5,
+            fontSize: 8,
             textColor: [51, 65, 85] // Slate 700
           },
           alternateRowStyles: {
             fillColor: [248, 250, 252] // Slate 50
           },
           columnStyles: {
-            0: { fontStyle: 'bold', cellWidth: 25 },
-            1: { fontStyle: 'bold', cellWidth: 32 },
-            2: { fontStyle: 'bold', cellWidth: 60 },
-            3: { cellWidth: 40 },
-            4: { cellWidth: 30 },
-            5: { fontStyle: 'bold', cellWidth: 50 },
-            6: { fontStyle: 'bold', cellWidth: 22 }
+            0: { fontStyle: 'bold', cellWidth: 20 },
+            1: { fontStyle: 'bold', cellWidth: 26 },
+            2: { fontStyle: 'bold', cellWidth: 44 },
+            3: { cellWidth: 32 },
+            4: { cellWidth: 22 },
+            5: { fontStyle: 'bold', cellWidth: 24 },
+            6: { fontStyle: 'bold', cellWidth: 14 }
           },
           margin: { left: 14, right: 14 },
           didDrawPage: (data) => {
-            // Footer with page number
+            // Footer with page number (Portrait height: 297mm)
             const str = "Page " + (doc as any).internal.getNumberOfPages();
             doc.setFontSize(8);
             doc.setFont("Helvetica", "normal");
             doc.setTextColor(148, 163, 184);
-            doc.text(str, 283 - doc.getTextWidth(str), 200);
-            doc.text("EE Department Portal — Dynamic Scheduler", 14, 200);
+            doc.text(str, 196 - doc.getTextWidth(str), 287);
+            doc.text("EE Department Portal — Dynamic Scheduler", 14, 287);
           }
         });
       }

@@ -247,13 +247,16 @@ export default function TimetableModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.2 }}
-          className="w-full max-w-lg overflow-hidden bg-white rounded-2xl shadow-2xl border border-slate-100"
+          className="w-full max-w-md max-h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden"
         >
           {/* Modal Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-            <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
-              {editingEntry ? 'Edit Schedule Slot' : 'Add New Schedule Slot'}
-            </h3>
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+              <h3 className="text-sm font-extrabold text-slate-900">
+                {editingEntry ? 'Edit Schedule Slot' : 'Add New Schedule Slot'}
+              </h3>
+            </div>
             <button
               onClick={onClose}
               className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
@@ -263,46 +266,46 @@ export default function TimetableModal({
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {error && (
-              <div className="flex items-start gap-2.5 p-3 rounded-lg bg-red-50 border border-red-100 text-red-800 text-xs font-semibold">
-                <AlertCircle size={15} className="shrink-0 mt-0.5 text-red-600" />
-                <span>{error}</span>
-              </div>
-            )}
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {error && (
+                <div className="flex items-start gap-2.5 p-3 rounded-lg bg-red-50 border border-red-100 text-red-800 text-xs font-semibold">
+                  <AlertCircle size={15} className="shrink-0 mt-0.5 text-red-600" />
+                  <span>{error}</span>
+                </div>
+              )}
 
-            <div className="grid grid-cols-2 gap-4">
-              {/* Day of Week */}
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Day of Week
-                </label>
-                <select
-                  value={day}
-                  onChange={(e) => setDay(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-medium cursor-pointer"
-                >
-                  {DAYS.map((d) => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              </div>
+              {/* Day of Week & Slot Type vertically stacked in Portrait Mode */}
+              <div className="space-y-3.5">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Day of Week
+                  </label>
+                  <select
+                    value={day}
+                    onChange={(e) => setDay(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-semibold cursor-pointer"
+                  >
+                    {DAYS.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
 
-              {/* Type (Class/Lab) */}
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Slot Type
-                </label>
-                <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value as 'Class' | 'Lab')}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-medium cursor-pointer"
-                >
-                  <option value="Class">Class (Lecture)</option>
-                  <option value="Lab">Lab (Practical)</option>
-                </select>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Slot Type
+                  </label>
+                  <select
+                    value={type}
+                    onChange={(e) => setType(e.target.value as 'Class' | 'Lab')}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-semibold cursor-pointer"
+                  >
+                    <option value="Class">Class (Lecture)</option>
+                    <option value="Lab">Lab (Practical)</option>
+                  </select>
+                </div>
               </div>
-            </div>
 
             {/* Subject / Course Title */}
             <div>
@@ -520,21 +523,22 @@ export default function TimetableModal({
                 />
               )}
             </div>
+            </div>
 
-            {/* Submit Actions */}
-            <div className="flex gap-3 pt-4 border-t border-slate-100">
+            {/* Submit Actions (Fixed Footer in Portrait Modal) */}
+            <div className="flex gap-3 px-5 py-3.5 bg-slate-50/80 border-t border-slate-100 shrink-0">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="flex-1 px-4 py-2.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors cursor-pointer"
+                className="flex-1 px-4 py-2.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 disabled:opacity-50 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50 transition-all shadow-xs cursor-pointer"
               >
                 <Save size={14} />
                 {isSubmitting ? 'Saving...' : 'Save Schedule'}
