@@ -1,6 +1,6 @@
 {
   "name": "Department Timetable",
-  "description": "A system for departments to view daily classes, labs, and free rooms, with a secure editor login to manage the timetable.",
+  "description": "A system for departments to view daily classes, faculty schedules, quiz assessments, and free rooms, with an administrator portal to manage timetables and quizzes.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

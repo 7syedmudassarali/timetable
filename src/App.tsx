@@ -10,29 +10,42 @@ import {
   deleteRoom,
   getTeachers,
   addTeacher,
-  deleteTeacher
+  deleteTeacher,
+  getQuizzes,
+  addQuiz,
+  updateQuiz,
+  deleteQuiz
 } from './firebase';
-import { TimetableEntry, RoomEntry, TeacherEntry } from './types';
+import { TimetableEntry, RoomEntry, TeacherEntry, QuizEntry } from './types';
 import Header from './components/Header';
 import StudentView from './components/StudentView';
 import TeacherView from './components/TeacherView';
 import RoomStatusView from './components/RoomStatusView';
+import QuizManagementView from './components/QuizManagementView';
 import TimetableModal from './components/TimetableModal';
-import { BookOpen, GraduationCap, Map, Users, Settings, AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
+import QuizModal from './components/QuizModal';
+import { BookOpen, GraduationCap, Map, Users, Settings, AlertCircle, RefreshCw, Trash2, CalendarClock } from 'lucide-react';
 
 export default function App() {
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
   const [rooms, setRooms] = useState<RoomEntry[]>([]);
   const [teachers, setTeachers] = useState<TeacherEntry[]>([]);
+  const [quizzes, setQuizzes] = useState<QuizEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [activeTab, setActiveTab] = useState<'student' | 'teacher' | 'rooms'>('student');
+  const [activeTab, setActiveTab] = useState<'student' | 'teacher' | 'rooms' | 'quizzes'>('student');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimetableEntry | null>(null);
   const [deleteConfirmEntry, setDeleteConfirmEntry] = useState<TimetableEntry | null>(null);
+  
+  // Quiz modal & delete state
+  const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
+  const [editingQuiz, setEditingQuiz] = useState<QuizEntry | null>(null);
+  const [deleteConfirmQuiz, setDeleteConfirmQuiz] = useState<QuizEntry | null>(null);
+
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  // Load the timetable and rooms on mount
+  // Load the timetable, rooms, teachers and quizzes on mount
   useEffect(() => {
     fetchData();
     
@@ -46,14 +59,16 @@ export default function App() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [timetableData, roomsData, teachersData] = await Promise.all([
+      const [timetableData, roomsData, teachersData, quizzesData] = await Promise.all([
         getTimetable(),
         getRooms(),
-        getTeachers()
+        getTeachers(),
+        getQuizzes()
       ]);
       setTimetable(timetableData);
       setRooms(roomsData);
       setTeachers(teachersData);
+      setQuizzes(quizzesData);
     } catch (error) {
       console.error("Failed to load initial data:", error);
       showToast("Failed to fetch data from Firebase. Using local cache.", "error");
@@ -71,6 +86,8 @@ export default function App() {
       setRooms(roomsData);
       const teachersData = await getTeachers();
       setTeachers(teachersData);
+      const quizzesData = await getQuizzes();
+      setQuizzes(quizzesData);
     } catch (error) {
       console.error("Failed to load timetable data:", error);
       showToast("Failed to fetch timetable data. Using local cache.", "error");
@@ -116,6 +133,66 @@ export default function App() {
       showToast("Error saving timetable slot.", "error");
       throw error;
     }
+  };
+
+  const handleSaveQuiz = async (quizPayload: Partial<QuizEntry> & { id?: string }) => {
+    try {
+      if (quizPayload.id) {
+        const { id, ...dataToSave } = quizPayload;
+        await updateQuiz(id, dataToSave);
+        setQuizzes(prev => prev.map(item => item.id === id ? ({ ...item, ...dataToSave } as QuizEntry) : item).sort((a, b) => {
+          const dateDiff = a.date.localeCompare(b.date);
+          if (dateDiff !== 0) return dateDiff;
+          return a.startTime.localeCompare(b.startTime);
+        }));
+        showToast("Quiz schedule updated successfully!");
+      } else {
+        const newId = await addQuiz(quizPayload as any);
+        const newEntry = { ...quizPayload, id: newId } as QuizEntry;
+        setQuizzes(prev => [...prev, newEntry].sort((a, b) => {
+          const dateDiff = a.date.localeCompare(b.date);
+          if (dateDiff !== 0) return dateDiff;
+          return a.startTime.localeCompare(b.startTime);
+        }));
+        showToast("Quiz scheduled successfully!");
+      }
+    } catch (error) {
+      console.error(error);
+      showToast("Error saving quiz schedule.", "error");
+      throw error;
+    }
+  };
+
+  const handleDeleteQuiz = (quizId: string) => {
+    const quiz = quizzes.find(q => q.id === quizId);
+    if (quiz) {
+      setDeleteConfirmQuiz(quiz);
+    }
+  };
+
+  const confirmDeleteQuiz = async () => {
+    if (!deleteConfirmQuiz) return;
+    const { id } = deleteConfirmQuiz;
+    try {
+      await deleteQuiz(id);
+      setQuizzes(prev => prev.filter(q => q.id !== id));
+      showToast("Quiz assessment deleted.");
+    } catch (error) {
+      console.error(error);
+      showToast("Error deleting quiz schedule.", "error");
+    } finally {
+      setDeleteConfirmQuiz(null);
+    }
+  };
+
+  const handleEditQuiz = (quiz: QuizEntry) => {
+    setEditingQuiz(quiz);
+    setIsQuizModalOpen(true);
+  };
+
+  const handleAddQuiz = () => {
+    setEditingQuiz(null);
+    setIsQuizModalOpen(true);
   };
 
   const handleAddRoom = async (name: string, type: 'Class' | 'Lab') => {
@@ -253,6 +330,19 @@ export default function App() {
               <Map size={15} />
               <span>Free Rooms Finder</span>
             </button>
+
+            {/* Quiz Schedule & Management view tab */}
+            <button
+              onClick={() => setActiveTab('quizzes')}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
+                activeTab === 'quizzes'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <CalendarClock size={15} />
+              <span>Quiz Schedule</span>
+            </button>
           </div>
 
           {/* Right quick Actions & Status Indicator */}
@@ -267,7 +357,7 @@ export default function App() {
               onClick={fetchTimetable}
               disabled={loading}
               className="p-2.5 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-xl transition-all border border-slate-200 bg-white shadow-xs cursor-pointer active:scale-95"
-              title="Refresh Timetable from Database"
+              title="Refresh Timetable & Quizzes from Database"
             >
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
@@ -279,7 +369,7 @@ export default function App() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-3">
               <RefreshCw size={36} className="animate-spin text-[#1e3a8a]" />
-              <p className="text-xs font-bold tracking-wide uppercase text-slate-500">Syncing timetable from Firebase...</p>
+              <p className="text-xs font-bold tracking-wide uppercase text-slate-500">Syncing data from Firebase...</p>
             </div>
           ) : (
             <motion.div
@@ -316,6 +406,19 @@ export default function App() {
                   onDeleteRoom={handleDeleteRoom}
                 />
               )}
+
+              {activeTab === 'quizzes' && (
+                <QuizManagementView
+                  quizzes={quizzes}
+                  timetable={timetable}
+                  rooms={rooms}
+                  teachers={teachers}
+                  isAdmin={isAdmin}
+                  onAddQuiz={handleAddQuiz}
+                  onEditQuiz={handleEditQuiz}
+                  onDeleteQuiz={handleDeleteQuiz}
+                />
+              )}
             </motion.div>
           )}
         </div>
@@ -334,7 +437,7 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Editor Modal Dialog */}
+      {/* Timetable Editor Modal Dialog */}
       <TimetableModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -344,6 +447,100 @@ export default function App() {
         rooms={rooms}
         teachers={teachers}
       />
+
+      {/* Quiz Editor Modal Dialog */}
+      <QuizModal
+        isOpen={isQuizModalOpen}
+        onClose={() => setIsQuizModalOpen(false)}
+        onSave={handleSaveQuiz}
+        editingQuiz={editingQuiz}
+        timetable={timetable}
+        rooms={rooms}
+        teachers={teachers}
+        existingQuizzes={quizzes}
+      />
+
+      {/* Custom Quiz Delete Confirmation Dialog */}
+      <AnimatePresence>
+        {deleteConfirmQuiz && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDeleteConfirmQuiz(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: "spring", duration: 0.3 }}
+              className="relative bg-white rounded-2xl shadow-xl border border-slate-100 max-w-md w-full overflow-hidden z-10"
+            >
+              <div className="h-1.5 bg-red-600 w-full" />
+              
+              <div className="p-6 space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="h-10 w-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center shrink-0 border border-red-100 shadow-xs">
+                    <Trash2 size={20} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
+                      Delete Quiz Assessment?
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                      Are you sure you want to delete this scheduled quiz? This action will permanently remove this quiz from the department portal.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quiz Details Preview Box */}
+                <div className="bg-slate-50 border border-slate-150 rounded-xl p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Quiz Title</span>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      {deleteConfirmQuiz.batch}
+                    </span>
+                  </div>
+                  <p className="text-xs font-extrabold text-slate-900 line-clamp-1">{deleteConfirmQuiz.title} — {deleteConfirmQuiz.subject}</p>
+                  
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/50 text-[11px] font-semibold text-slate-600 font-mono">
+                    <div>
+                      <span className="text-[9px] text-slate-400 block uppercase tracking-wide mb-0.5">Date & Time</span>
+                      <span>{deleteConfirmQuiz.date}, {deleteConfirmQuiz.startTime} - {deleteConfirmQuiz.endTime}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 block uppercase tracking-wide mb-0.5">Venue & Instructor</span>
+                      <span>{deleteConfirmQuiz.room} • {deleteConfirmQuiz.teacher}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirmQuiz(null)}
+                    className="flex-1 px-4 py-2.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmDeleteQuiz}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm cursor-pointer"
+                  >
+                    <Trash2 size={13} />
+                    Delete Permanently
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Custom Delete Confirmation Dialog */}
       <AnimatePresence>

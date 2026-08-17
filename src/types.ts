@@ -29,6 +29,21 @@ export interface RoomStatus {
   nextClass?: TimetableEntry;
 }
 
+export interface QuizEntry {
+  id: string;
+  title: string; // e.g. "Quiz 1", "Midterm Assessment"
+  subject: string; // e.g. "Digital Logic Design"
+  teacher: string; // e.g. "Dr. Mudassar"
+  room: string; // e.g. "Lecture Room 101"
+  batch: string; // e.g. "EE-1A" or "EE-1A + EE-1B (Combined)"
+  date: string; // YYYY-MM-DD
+  startTime: string; // "09:30"
+  endTime: string; // "10:15"
+  totalMarks?: number; // e.g. 15
+  topics?: string; // e.g. "K-Maps, Combinational Circuits"
+  status?: 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
+}
+
 export function getSemesterFromBatch(batch: string): string {
   if (!batch) return 'Other';
   

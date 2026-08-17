@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, MapPin, Clock, Calendar, Search, AlertCircle, BookOpen, Plus, Trash2 } from 'lucide-react';
+import { User, MapPin, Clock, Calendar, Search, AlertCircle, BookOpen, Plus, Trash2, Download } from 'lucide-react';
 import { TimetableEntry, TeacherEntry, getSemesterFromBatch } from '../types';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface TeacherViewProps {
   timetable: TimetableEntry[];
@@ -77,6 +79,115 @@ export default function TeacherView({
     }
     return acc;
   }, {} as Record<string, TimetableEntry[]>);
+
+  const downloadTeacherPDF = (teacherName: string = selectedTeacher) => {
+    if (!teacherName) return;
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Header title
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(16);
+      doc.setTextColor(15, 23, 42); // Slate 900
+      doc.text("EE Department — Faculty Timetable", 14, 18);
+
+      // Sub-header details
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(100, 116, 139); // Slate 500
+      
+      const teacherSlots = timetable
+        .filter(entry => entry.teacher.toLowerCase() === teacherName.toLowerCase())
+        .sort((a, b) => {
+          const dayDiff = DAYS_ORDER.indexOf(a.day) - DAYS_ORDER.indexOf(b.day);
+          if (dayDiff !== 0) return dayDiff;
+          return a.startTime.localeCompare(b.startTime);
+        });
+
+      const titleStr = `Faculty Schedule: ${teacherName} (${teacherSlots.length} Weekly Sessions)`;
+      doc.text(titleStr, 14, 24);
+      doc.text(`Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, 14, 29);
+
+      // Add a line divider (Portrait width: 210mm, right margin 14mm -> 196mm)
+      doc.setDrawColor(226, 232, 240); // Slate 200
+      doc.line(14, 32, 196, 32);
+
+      const headers = [["Day", "Time Slot", "Subject / Course", "Location", "Semester", "Section", "Type"]];
+      const rows = teacherSlots.map(entry => {
+        const isCombined = entry.batch.includes('+') || entry.batch.toLowerCase().includes('combined');
+        let sectionText = entry.batch;
+        if (isCombined && !sectionText.toLowerCase().includes('combined')) {
+          sectionText = `${sectionText} (Combined)`;
+        }
+
+        return [
+          entry.day,
+          `${entry.startTime} - ${entry.endTime}`,
+          entry.subject,
+          entry.room,
+          getSemesterFromBatch(entry.batch),
+          sectionText,
+          entry.type.toUpperCase()
+        ];
+      });
+
+      if (rows.length === 0) {
+        doc.setFont("Helvetica", "italic");
+        doc.setFontSize(11);
+        doc.setTextColor(148, 163, 184); // Slate 400
+        doc.text("No classes scheduled for this instructor.", 14, 45);
+      } else {
+        autoTable(doc, {
+          startY: 36,
+          head: headers,
+          body: rows,
+          theme: 'striped',
+          headStyles: {
+            fillColor: [30, 41, 59], // Slate 800
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 8.5,
+            halign: 'left'
+          },
+          bodyStyles: {
+            fontSize: 8,
+            textColor: [51, 65, 85] // Slate 700
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252] // Slate 50
+          },
+          columnStyles: {
+            0: { fontStyle: 'bold', cellWidth: 20 },
+            1: { fontStyle: 'bold', cellWidth: 26 },
+            2: { fontStyle: 'bold', cellWidth: 44 },
+            3: { cellWidth: 26 },
+            4: { cellWidth: 22 },
+            5: { fontStyle: 'bold', cellWidth: 30 },
+            6: { fontStyle: 'bold', cellWidth: 14 }
+          },
+          margin: { left: 14, right: 14 },
+          didDrawPage: () => {
+            const str = "Page " + (doc as any).internal.getNumberOfPages();
+            doc.setFontSize(8);
+            doc.setFont("Helvetica", "normal");
+            doc.setTextColor(148, 163, 184);
+            doc.text(str, 196 - doc.getTextWidth(str), 287);
+            doc.text("EE Department Portal — Faculty Schedule", 14, 287);
+          }
+        });
+      }
+
+      const cleanName = teacherName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const filename = `faculty_timetable_${cleanName}.pdf`;
+      doc.save(filename);
+    } catch (err) {
+      console.error("Error generating teacher schedule PDF:", err);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -290,6 +401,18 @@ export default function TeacherView({
                     <h3 className="text-base font-extrabold text-slate-900">{selectedTeacher}</h3>
                     <p className="text-xs text-slate-500 font-semibold">Total workload: {teacherSchedule.length} weekly sessions</p>
                   </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => downloadTeacherPDF(selectedTeacher)}
+                    disabled={teacherSchedule.length === 0}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-95 shrink-0"
+                    title={`Download ${selectedTeacher}'s timetable in PDF format`}
+                  >
+                    <Download size={14} />
+                    <span>Download Schedule (PDF)</span>
+                  </button>
                 </div>
               </div>
 

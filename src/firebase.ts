@@ -9,7 +9,7 @@ import {
   doc,
   writeBatch
 } from 'firebase/firestore';
-import { TimetableEntry, RoomEntry, TeacherEntry } from './types';
+import { TimetableEntry, RoomEntry, TeacherEntry, QuizEntry } from './types';
 import firebaseConfigJson from '../firebase-applet-config.json';
 
 const metaEnv = (import.meta as any).env || {};
@@ -293,3 +293,136 @@ export async function deleteTeacher(id: string): Promise<void> {
   const docRef = doc(db, TEACHERS_COLLECTION, id);
   await deleteDoc(docRef);
 }
+
+const QUIZZES_COLLECTION = "quizzes";
+
+// Helper to generate dynamic ISO dates relative to today
+const getDateOffset = (days: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+};
+
+const defaultQuizzes: Omit<QuizEntry, 'id'>[] = [
+  {
+    title: "Quiz 1: Electric Circuit Analysis",
+    subject: "Electric Circuit Theory",
+    teacher: "Dr. Mudassar",
+    room: "Lecture Room 101",
+    batch: "EE-1A + EE-1B (Combined)",
+    date: getDateOffset(2),
+    startTime: "09:30",
+    endTime: "10:15",
+    totalMarks: 15,
+    topics: "Ohm's Law, Kirchhoff's Laws (KVL & KCL), Node Voltage Method",
+    status: "scheduled"
+  },
+  {
+    title: "Quiz 2: Semiconductor Physics",
+    subject: "Electronic Devices",
+    teacher: "Prof. Fatima",
+    room: "Lecture Room 102",
+    batch: "EE-2A",
+    date: getDateOffset(4),
+    startTime: "11:00",
+    endTime: "11:45",
+    totalMarks: 20,
+    topics: "PN Junction diode characteristics, Zener Diode & rectifiers",
+    status: "scheduled"
+  },
+  {
+    title: "Quiz 1: SQL & Relational Models",
+    subject: "Database Systems",
+    teacher: "Dr. Arshad",
+    room: "Computer Lab A",
+    batch: "SE-2A",
+    date: getDateOffset(6),
+    startTime: "14:00",
+    endTime: "14:50",
+    totalMarks: 20,
+    topics: "DDL, DML, Nested Queries and Join operations",
+    status: "scheduled"
+  },
+  {
+    title: "Quiz 3: Digital Logic Design",
+    subject: "Digital Logic & Design",
+    teacher: "Engr. Ali",
+    room: "Lecture Room 201",
+    batch: "CS-3A + CS-3B (Combined)",
+    date: getDateOffset(9),
+    startTime: "10:00",
+    endTime: "10:45",
+    totalMarks: 15,
+    topics: "K-Maps minimization, Multiplexers, Decoders & Adders",
+    status: "scheduled"
+  }
+];
+
+export async function getQuizzes(): Promise<QuizEntry[]> {
+  try {
+    const colRef = collection(db, QUIZZES_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    
+    if (snapshot.empty) {
+      console.log("Quizzes collection is empty. Seeding default quizzes...");
+      const seeded: QuizEntry[] = [];
+      const batch = writeBatch(db);
+      
+      for (const item of defaultQuizzes) {
+        const newDocRef = doc(colRef);
+        const entryWithId = { ...item, id: newDocRef.id };
+        batch.set(newDocRef, entryWithId);
+        seeded.push(entryWithId);
+      }
+      
+      await batch.commit();
+      return seeded;
+    }
+    
+    const quizzes: QuizEntry[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      quizzes.push({
+        id: docSnap.id,
+        title: data.title || "Quiz",
+        subject: data.subject || "",
+        teacher: data.teacher || "",
+        room: data.room || "",
+        batch: data.batch || "",
+        date: data.date || "",
+        startTime: data.startTime || "09:00",
+        endTime: data.endTime || "10:00",
+        totalMarks: data.totalMarks ? Number(data.totalMarks) : undefined,
+        topics: data.topics || "",
+        status: data.status || "scheduled"
+      });
+    });
+    
+    return quizzes.sort((a, b) => {
+      const dateDiff = a.date.localeCompare(b.date);
+      if (dateDiff !== 0) return dateDiff;
+      return a.startTime.localeCompare(b.startTime);
+    });
+  } catch (error) {
+    console.error("Error fetching quizzes from Firebase, using default mock:", error);
+    return defaultQuizzes.map((d, i) => ({ ...d, id: `mock-quiz-${i}` }));
+  }
+}
+
+export async function addQuiz(quiz: Omit<QuizEntry, 'id'>): Promise<string> {
+  const colRef = collection(db, QUIZZES_COLLECTION);
+  const docRef = await addDoc(colRef, quiz);
+  await updateDoc(docRef, { id: docRef.id });
+  return docRef.id;
+}
+
+export async function updateQuiz(id: string, quiz: Partial<QuizEntry>): Promise<void> {
+  const docRef = doc(db, QUIZZES_COLLECTION, id);
+  await updateDoc(docRef, quiz);
+}
+
+export async function deleteQuiz(id: string): Promise<void> {
+  const docRef = doc(db, QUIZZES_COLLECTION, id);
+  await deleteDoc(docRef);
+}
+
